@@ -1,0 +1,2300 @@
+local WindUI = loadstring(game:HttpGet(
+    "https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"
+))()
+
+local Players = game:GetService("Players")
+local Player = Players.LocalPlayer
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local PlayerGui = Player:WaitForChild("PlayerGui")
+local Debris = game:GetService("Debris")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local camera = workspace.CurrentCamera
+
+WindUI.Services.mysuperservicetogetkey = {
+    Name = "Ryuusei Suna Hub Key",
+    Icon = "droplet",
+    Args = {},
+    New = function()
+        local function copyLink()
+            pcall(function()
+                setclipboard("https://discord.gg/US3pvaq7EN")
+            end)
+        end
+
+        local function levenshtein(a, b)
+            a, b = a:lower(), b:lower()
+            local m, n = #a, #b
+            if m == 0 then return n end
+            if n == 0 then return m end
+
+            local matrix = {}
+            for i = 0, m do matrix[i] = {[0] = i} end
+            for j = 0, n do matrix[0][j] = j end
+
+            for i = 1, m do
+                for j = 1, n do
+                    local cost = (a:sub(i,i) == b:sub(j,j)) and 0 or 1
+                    matrix[i][j] = math.min(
+                        matrix[i-1][j] + 1,
+                        matrix[i][j-1] + 1,
+                        matrix[i-1][j-1] + cost
+                    )
+                end
+            end
+            return matrix[m][n]
+        end
+
+        local function isSimilar(input)
+            return levenshtein(input, "RyuuseiHub") <= 3
+        end
+
+        return {
+            Verify = function(key)
+                if isSimilar(key) then
+                    return true, "Valid Key!"
+                else
+                    return false, "Invalid Key! Join our Discord"
+                end
+            end,
+            Copy = copyLink
+        }
+    end
+}
+
+local Window = WindUI:CreateWindow({
+    Title = "Ryuusei Suna Hub",
+    Icon = "github",
+    Author = "by Baisoku",
+    Folder = "Evade Script",
+    Size = UDim2.fromOffset(1000, 460),
+    Transparent = true,
+    Theme = "Dark",
+    Resizable = true,
+    SideBarWidth = 200,
+    HideSearchBar = true,
+    ScrollBarEnabled = false,
+    Background = "rbxassetid://110698714612206",
+    KeySystem = {
+        Key = {"RyuuseiHub"},
+        Note = "Get the key from Discord",
+        SaveKey = false
+    }
+})
+
+Window:EditOpenButton({
+    Title = "Open Ryuusei Suna",
+    Icon = "monitor",
+    CornerRadius = UDim.new(0,16),
+    StrokeThickness = 2,
+    Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 50, 50)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 150, 150)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))
+    }),
+    Draggable = true
+})
+
+local AboutTab = Window:Tab({Title = "About", Icon = "user"})
+local MainTab = Window:Tab({Title = "Player", Icon = "star"})
+local VisualTab = Window:Tab({ Title = "Visual", Icon = "sparkles" })
+local GameTab = Window:Tab({Title = "Lag", Icon = "smile"})
+local EspTab = Window:Tab({Title = "Esp", Icon = "book-open"})
+
+AboutTab:Paragraph({
+    Title = "About Ryuusei Suna",
+    Desc = "Made by Baisoku (solo developer)",
+    Thumbnail = "rbxassetid://125307920527809",
+    ThumbnailSize = 60
+})
+
+AboutTab:Paragraph({
+    Title = "Change Logs\nRyuusei Suna 1.0",
+    Desc = "Initial release",
+    TitleSize = 40
+})
+
+-- Variabel untuk AutoJump
+local AutoJumpEnabled = false
+local AutoJumpMode = "Acceleration"
+local AutoJumpAccel = -0.1
+local ApplyMode = "Unoptimized"
+
+-- Variabel untuk AutoTrimp (SIMPLIFIED FIXED VERSION)
+local AutoTrimpEnabled = false
+local autoTrimpGUI = nil
+local autoTrimpConnection = nil
+local trimpSpeed = 50
+local trimpBodyVelocity = nil
+
+-- FUNGSI AUTO JUMP YANG DIPERBAIKI
+local lastJump = 0
+local jumpCooldown = 0.1
+local autoJumpConnection = nil
+local autoJumpGUI = nil
+
+-- Fungsi untuk mendeteksi apakah karakter sedang di tanah
+local function isOnGround(character)
+    if not character then return false end
+    
+    local humanoid = character:FindFirstChild("Humanoid")
+    local root = character:FindFirstChild("HumanoidRootPart")
+    
+    if not humanoid or not root then return false end
+    
+    -- Cek state humanoid
+    local state = humanoid:GetState()
+    if state == Enum.HumanoidStateType.Jumping or 
+       state == Enum.HumanoidStateType.Freefall then
+        return false
+    end
+    
+    -- Raycast sederhana untuk deteksi tanah
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+    raycastParams.FilterDescendantsInstances = {character}
+    
+    local rayOrigin = root.Position
+    local rayDirection = Vector3.new(0, -4, 0)
+    local raycastResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+    
+    return raycastResult ~= nil
+end
+
+local function applyFriction()
+    if AutoJumpMode == "Acceleration" and AutoJumpEnabled then
+        local char = Player.Character
+        if char then
+            local root = char:FindFirstChild("HumanoidRootPart")
+            if root then
+                local currentVelocity = root.Velocity
+                root.Velocity = Vector3.new(
+                    currentVelocity.X * (1 + AutoJumpAccel),
+                    currentVelocity.Y,
+                    currentVelocity.Z * (1 + AutoJumpAccel)
+                )
+            end
+        end
+    end
+end
+
+-- FUNGSI AUTO TRIMP YANG DIPERBAIKI (SIMPLIFIED)
+local function updateAutoTrimp()
+    if not AutoTrimpEnabled then return end
+    
+    local char = Player.Character
+    if not char then return end
+    
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    
+    -- Hapus BodyVelocity lama jika ada
+    if trimpBodyVelocity then
+        trimpBodyVelocity:Destroy()
+        trimpBodyVelocity = nil
+    end
+    
+    -- Dapatkan arah pandangan kamera
+    local lookVector = camera.CFrame.LookVector
+    local moveDirection = Vector3.new(lookVector.X, 0, lookVector.Z)
+    
+    -- Normalisasi jika panjangnya > 0
+    if moveDirection.Magnitude > 0 then
+        moveDirection = moveDirection.Unit
+    end
+    
+    -- Terapkan kecepatan
+    local velocity = moveDirection * trimpSpeed
+    
+    -- Buat BodyVelocity baru
+    trimpBodyVelocity = Instance.new("BodyVelocity")
+    trimpBodyVelocity.Velocity = velocity
+    trimpBodyVelocity.MaxForce = Vector3.new(50000, 0, 50000)
+    trimpBodyVelocity.P = 1250
+    trimpBodyVelocity.Parent = hrp
+    
+    -- Auto cleanup
+    Debris:AddItem(trimpBodyVelocity, 0.1)
+end
+
+-- Fungsi untuk membuat GUI AutoJump yang bisa di-drag
+local function createAutoJumpGUI()
+    if PlayerGui:FindFirstChild("AutoJumpGUI") then
+        PlayerGui.AutoJumpGUI:Destroy()
+    end
+
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "AutoJumpGUI"
+    screenGui.ResetOnSpawn = false
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    screenGui.DisplayOrder = 10
+    screenGui.Parent = PlayerGui
+
+    local container = Instance.new("Frame")
+    container.Name = "AutoJumpContainer"
+    container.Size = UDim2.new(0, 160, 0, 44)
+    container.Position = UDim2.new(0.5, -80, 0, 20)
+    container.AnchorPoint = Vector2.new(0.5, 0)
+    container.BackgroundTransparency = 0.7
+    container.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+    container.Active = true
+    container.Selectable = true
+    container.ZIndex = 10
+    container.Visible = true
+    container.Parent = screenGui
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 16)
+    corner.Parent = container
+
+    local gradient = Instance.new("UIGradient")
+    gradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 50, 50)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 150, 150)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))
+    })
+    gradient.Rotation = 0
+    gradient.Parent = container
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Thickness = 2
+    stroke.Color = Color3.fromRGB(255, 50, 50)
+    stroke.Parent = container
+
+    local label = Instance.new("TextLabel")
+    label.Name = "StatusLabel"
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 16
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.Text = "Auto Jump: OFF"
+    label.TextStrokeTransparency = 0.5
+    label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    label.ZIndex = 11
+    label.Visible = true
+    label.Parent = container
+
+    local button = Instance.new("TextButton")
+    button.Name = "ToggleButton"
+    button.Size = UDim2.new(1, 0, 1, 0)
+    button.BackgroundTransparency = 1
+    button.Text = ""
+    button.ZIndex = 12
+    button.Visible = true
+    button.Parent = container
+
+    -- DRAGGABLE FUNCTIONALITY
+    local dragging = false
+    local dragStart, containerStart
+    
+    button.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            containerStart = container.Position
+        end
+    end)
+    
+    button.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = input.Position - dragStart
+            container.Position = UDim2.new(
+                containerStart.X.Scale,
+                containerStart.X.Offset + delta.X,
+                containerStart.Y.Scale,
+                containerStart.Y.Offset + delta.Y
+            )
+        end
+    end)
+    
+    button.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+
+    local function updateDisplay()
+        if AutoJumpEnabled then
+            label.Text = "Auto Jump: ON"
+            gradient.Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(50, 255, 50)),
+                ColorSequenceKeypoint.new(0.5, Color3.fromRGB(150, 255, 150)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))
+            })
+            stroke.Color = Color3.fromRGB(50, 255, 50)
+        else
+            label.Text = "Auto Jump: OFF"
+            gradient.Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 50, 50)),
+                ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 150, 150)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))
+            })
+            stroke.Color = Color3.fromRGB(255, 50, 50)
+        end
+    end
+
+    button.MouseButton1Click:Connect(function()
+        AutoJumpEnabled = not AutoJumpEnabled
+        updateDisplay()
+        
+        -- Start atau stop auto jump
+        if AutoJumpEnabled then
+            if not autoJumpConnection then
+                autoJumpConnection = RunService.RenderStepped:Connect(function()
+                    local now = tick()
+                    local char = Player.Character
+                    
+                    if char and now - lastJump >= jumpCooldown then
+                        local humanoid = char:FindFirstChild("Humanoid")
+                        if humanoid and humanoid:GetState() ~= Enum.HumanoidStateType.Dead then
+                            if isOnGround(char) then
+                                lastJump = now
+                                humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+                                
+                                -- Apply friction setelah jump
+                                if AutoJumpMode == "Acceleration" then
+                                    applyFriction()
+                                end
+                            end
+                        end
+                    end
+                end)
+            end
+        else
+            if autoJumpConnection then
+                autoJumpConnection:Disconnect()
+                autoJumpConnection = nil
+            end
+        end
+    end)
+
+    button.MouseEnter:Connect(function()
+        stroke.Thickness = 3
+    end)
+
+    button.MouseLeave:Connect(function()
+        stroke.Thickness = 2
+    end)
+
+    updateDisplay()
+    return screenGui
+end
+
+-- Fungsi untuk membuat GUI AutoTrimp yang bisa di-drag
+local function createAutoTrimpGUI()
+    if PlayerGui:FindFirstChild("AutoTrimpGUI") then
+        PlayerGui.AutoTrimpGUI:Destroy()
+    end
+
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "AutoTrimpGUI"
+    screenGui.ResetOnSpawn = false
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    screenGui.DisplayOrder = 9
+    screenGui.Parent = PlayerGui
+
+    local container = Instance.new("Frame")
+    container.Name = "AutoTrimpContainer"
+    container.Size = UDim2.new(0, 160, 0, 44)
+    container.Position = UDim2.new(0.5, -80, 0, 74)
+    container.AnchorPoint = Vector2.new(0.5, 0)
+    container.BackgroundTransparency = 0.7
+    container.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+    container.Active = true
+    container.Selectable = true
+    container.ZIndex = 10
+    container.Visible = true
+    container.Parent = screenGui
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 16)
+    corner.Parent = container
+
+    local gradient = Instance.new("UIGradient")
+    gradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 50, 50)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 150, 150)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))
+    })
+    gradient.Rotation = 0
+    gradient.Parent = container
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Thickness = 2
+    stroke.Color = Color3.fromRGB(255, 50, 50)
+    stroke.Parent = container
+
+    local label = Instance.new("TextLabel")
+    label.Name = "StatusLabel"
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 16
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.Text = "Auto Trimp: OFF"
+    label.TextStrokeTransparency = 0.5
+    label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    label.ZIndex = 11
+    label.Visible = true
+    label.Parent = container
+
+    local button = Instance.new("TextButton")
+    button.Name = "ToggleButton"
+    button.Size = UDim2.new(1, 0, 1, 0)
+    button.BackgroundTransparency = 1
+    button.Text = ""
+    button.ZIndex = 12
+    button.Visible = true
+    button.Parent = container
+
+    -- DRAGGABLE FUNCTIONALITY
+    local dragging = false
+    local dragStart, containerStart
+    
+    button.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            containerStart = container.Position
+        end
+    end)
+    
+    button.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = input.Position - dragStart
+            container.Position = UDim2.new(
+                containerStart.X.Scale,
+                containerStart.X.Offset + delta.X,
+                containerStart.Y.Scale,
+                containerStart.Y.Offset + delta.Y
+            )
+        end
+    end)
+    
+    button.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+
+    local function updateDisplay()
+        if AutoTrimpEnabled then
+            label.Text = "Auto Trimp: ON"
+            gradient.Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(50, 255, 50)),
+                ColorSequenceKeypoint.new(0.5, Color3.fromRGB(150, 255, 150)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))
+            })
+            stroke.Color = Color3.fromRGB(50, 255, 50)
+        else
+            label.Text = "Auto Trimp: OFF"
+            gradient.Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 50, 50)),
+                ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 150, 150)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))
+            })
+            stroke.Color = Color3.fromRGB(255, 50, 50)
+        end
+    end
+
+    button.MouseButton1Click:Connect(function()
+        AutoTrimpEnabled = not AutoTrimpEnabled
+        updateDisplay()
+        
+        -- Start atau stop auto trimp
+        if AutoTrimpEnabled then
+            if not autoTrimpConnection then
+                autoTrimpConnection = RunService.RenderStepped:Connect(function()
+                    updateAutoTrimp()
+                end)
+            end
+        else
+            if autoTrimpConnection then
+                autoTrimpConnection:Disconnect()
+                autoTrimpConnection = nil
+            end
+            
+            -- Hapus BodyVelocity saat dimatikan
+            if trimpBodyVelocity then
+                trimpBodyVelocity:Destroy()
+                trimpBodyVelocity = nil
+            end
+        end
+    end)
+
+    button.MouseEnter:Connect(function()
+        stroke.Thickness = 3
+    end)
+
+    button.MouseLeave:Connect(function()
+        stroke.Thickness = 2
+    end)
+
+    updateDisplay()
+    return screenGui
+end
+
+-- Fungsi toggle untuk AutoJump dan AutoTrimp
+local function toggleAutoJump(state)
+    AutoJumpEnabled = state
+    
+    if state then
+        if not autoJumpGUI then
+            autoJumpGUI = createAutoJumpGUI()
+        end
+        autoJumpGUI.Enabled = true
+        
+        -- Start the auto jump loop
+        if not autoJumpConnection then
+            autoJumpConnection = RunService.RenderStepped:Connect(function()
+                local now = tick()
+                local char = Player.Character
+                
+                if char and now - lastJump >= jumpCooldown then
+                    local humanoid = char:FindFirstChild("Humanoid")
+                    if humanoid and humanoid:GetState() ~= Enum.HumanoidStateType.Dead then
+                        if isOnGround(char) then
+                            lastJump = now
+                            humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+                            
+                            -- Apply friction setelah jump
+                            if AutoJumpMode == "Acceleration" then
+                                applyFriction()
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+    else
+        if autoJumpGUI then
+            autoJumpGUI.Enabled = false
+        end
+        
+        if autoJumpConnection then
+            autoJumpConnection:Disconnect()
+            autoJumpConnection = nil
+        end
+    end
+end
+
+local function toggleAutoTrimp(state)
+    AutoTrimpEnabled = state
+    
+    if state then
+        if not autoTrimpGUI then
+            autoTrimpGUI = createAutoTrimpGUI()
+        end
+        autoTrimpGUI.Enabled = true
+        
+        -- Start auto trimp
+        if not autoTrimpConnection then
+            autoTrimpConnection = RunService.RenderStepped:Connect(function()
+                updateAutoTrimp()
+            end)
+        end
+    else
+        if autoTrimpGUI then
+            autoTrimpGUI.Enabled = false
+        end
+        
+        if autoTrimpConnection then
+            autoTrimpConnection:Disconnect()
+            autoTrimpConnection = nil
+        end
+        
+        -- Hapus BodyVelocity saat dimatikan
+        if trimpBodyVelocity then
+            trimpBodyVelocity:Destroy()
+            trimpBodyVelocity = nil
+        end
+    end
+end
+
+-- Setup untuk Player Settings
+local requiredFields = {
+    Speed = true,
+    JumpCap = true,
+    AirStrafeAcceleration = true
+}
+
+local currentSettings = {
+    Speed = 1500,
+    JumpCap = 1,
+    AirStrafeAcceleration = 187
+}
+
+local function getMatchingTables()
+    local matched = {}
+    for _, obj in pairs(getgc(true)) do
+        if typeof(obj) == "table" then
+            local ok = true
+            for field in pairs(requiredFields) do
+                if rawget(obj, field) == nil then
+                    ok = false
+                    break
+                end
+            end
+            if ok then
+                table.insert(matched, obj)
+            end
+        end
+    end
+    return matched
+end
+
+local function applySettings()
+    if ApplyMode == "Optimized" then
+        local targets = getMatchingTables()
+        for _, tbl in ipairs(targets) do
+            tbl.Speed = currentSettings.Speed
+            tbl.JumpCap = currentSettings.JumpCap
+            tbl.AirStrafeAcceleration = currentSettings.AirStrafeAcceleration
+        end
+    else
+        local targets = getMatchingTables()
+        for _, tbl in ipairs(targets) do
+            tbl.Speed = currentSettings.Speed
+            tbl.JumpCap = currentSettings.JumpCap
+            tbl.AirStrafeAcceleration = currentSettings.AirStrafeAcceleration
+        end
+    end
+end
+
+-- MainTab Controls
+MainTab:Input({
+    Title = "Speed",
+    Placeholder = "1500",
+    Value = "1500",
+    Callback = function(input)
+        local val = tonumber(input)
+        if val and val >= 1450 and val <= 1e9 then
+            currentSettings.Speed = val
+            applySettings()
+        end
+    end
+})
+
+MainTab:Input({
+    Title = "Jump Cap",
+    Placeholder = "1",
+    Value = "1",
+    Callback = function(input)
+        local val = tonumber(input)
+        if val and val >= 0.1 and val <= 1e6 then
+            currentSettings.JumpCap = val
+            applySettings()
+        end
+    end
+})
+
+MainTab:Input({
+    Title = "Strafe Speed",
+    Placeholder = "187",
+    Value = "187",
+    Callback = function(input)
+        local val = tonumber(input)
+        if val and val >= 1 and val <= 1e9 then
+            currentSettings.AirStrafeAcceleration = val
+            applySettings()
+        end
+    end
+})
+
+MainTab:Dropdown({
+    Title = "Apply Method",
+    Values = {"Unoptimized", "Optimized"},
+    Default = "Unoptimized",
+    Callback = function(v)
+        ApplyMode = v
+        applySettings()
+    end
+})
+
+MainTab:Divider()
+
+-- Cola Fix
+local Event = game:GetService("Players").LocalPlayer.PlayerScripts.Events.temporary_events.UseKeybind
+local oldNamecall
+
+MainTab:Toggle({
+    Title = "Enable Cola Fix",
+    Value = true,
+    Callback = function(state)
+        if state then
+            local mt = getrawmetatable(Event)
+            oldNamecall = mt.__namecall
+            
+            setreadonly(mt, false)
+            mt.__namecall = newcclosure(function(self, ...)
+                local method = getnamecallmethod()
+                local args = {...}
+                
+                if (method == "Fire" or method == "FireServer") and self == Event then
+                    if args[1] and args[1].Key and args[1].Key == "Cola" then
+                        game:GetService("ReplicatedStorage").Events.Character.ToolAction:FireServer(0, 19)
+                        return wait()
+                    end
+                end
+                
+                return oldNamecall(self, ...)
+            end)
+            setreadonly(mt, true)
+        else
+            local mt = getrawmetatable(Event)
+            setreadonly(mt, false)
+            if oldNamecall then
+                mt.__namecall = oldNamecall
+            end
+            setreadonly(mt, true)
+        end
+    end
+})
+
+MainTab:Divider()
+
+-- AutoJump Controls
+MainTab:Dropdown({
+    Title = "AutoJump Mode",
+    Values = {"Acceleration", "No Acceleration"},
+    Default = "Acceleration",
+    Callback = function(value)
+        AutoJumpMode = value
+    end
+})
+
+MainTab:Input({
+    Title = "AutoJump Acceleration",
+    Placeholder = "-0.1",
+    Value = "-0.1",
+    Callback = function(input)
+        local val = tonumber(input)
+        if val and val <= 0 then
+            AutoJumpAccel = val
+        end
+    end
+})
+
+MainTab:Toggle({
+    Title = "Auto Jump",
+    Value = false,
+    Callback = function(state)
+        toggleAutoJump(state)
+    end
+})
+
+MainTab:Divider()
+
+-- AutoTrimp Controls
+MainTab:Input({
+    Title = "AutoTrimp Base Speed",
+    Value = "50",
+    Placeholder = "50",
+    Callback = function(value)
+        local num = tonumber(value)
+        if num and num > 0 then
+            trimpSpeed = num
+        end
+    end
+})
+
+MainTab:Toggle({
+    Title = "Auto Trimp",
+    Value = false,
+    Callback = function(state)
+        toggleAutoTrimp(state)
+    end
+})
+
+MainTab:Divider()
+
+-- Infinite Slide
+local InfiniteSlideEnabled = false
+local movementTables = {}
+local infiniteSlideHeartbeat = nil
+local infiniteSlideCharacterConn = nil
+
+local requiredKeys = {
+    "Friction","AirStrafeAcceleration","JumpHeight","RunDeaccel",
+    "JumpSpeedMultiplier","JumpCap","SprintCap","WalkSpeedMultiplier",
+    "BhopEnabled","Speed","AirAcceleration","RunAccel","SprintAcceleration"
+}
+
+local function hasRequiredFields(tbl)
+    if typeof(tbl) ~= "table" then return false end
+    for _, key in ipairs(requiredKeys) do
+        if rawget(tbl, key) == nil then return false end
+    end
+    return true
+end
+
+local function findMovementTables()
+    movementTables = {}
+    for _, obj in ipairs(getgc(true)) do
+        if hasRequiredFields(obj) then
+            table.insert(movementTables, obj)
+        end
+    end
+    return #movementTables > 0
+end
+
+local function setSlideFriction(value)
+    for _, tbl in ipairs(movementTables) do
+        pcall(function()
+            tbl.Friction = value
+        end)
+    end
+end
+
+local function getPlayerModel()
+    local gameFolder = workspace:FindFirstChild("Game")
+    if not gameFolder then return nil end
+    
+    local playersFolder = gameFolder:FindFirstChild("Players")
+    if not playersFolder then return nil end
+    
+    return playersFolder:FindFirstChild(Player.Name)
+end
+
+local function infiniteSlideHeartbeatFunc()
+    if not InfiniteSlideEnabled then return end
+    
+    local playerModel = getPlayerModel()
+    if not playerModel then return end
+    
+    local state = playerModel:GetAttribute("State")
+    if state == "Slide" or state == "EmotingSlide" then
+        setSlideFriction(-8)
+    else
+        setSlideFriction(5)
+    end
+end
+
+local function onCharacterAddedSlide()
+    if not InfiniteSlideEnabled then return end
+    
+    for i = 1, 10 do
+        task.wait(0.5)
+        if getPlayerModel() then break end
+    end
+    task.wait(0.5)
+    findMovementTables()
+end
+
+local function setInfiniteSlide(enabled)
+    InfiniteSlideEnabled = enabled
+    
+    if enabled then
+        findMovementTables()
+        
+        if not infiniteSlideCharacterConn then
+            infiniteSlideCharacterConn = Player.CharacterAdded:Connect(onCharacterAddedSlide)
+        end
+        
+        if Player.Character then
+            task.spawn(onCharacterAddedSlide)
+        end
+        
+        if infiniteSlideHeartbeat then
+            infiniteSlideHeartbeat:Disconnect()
+        end
+        infiniteSlideHeartbeat = RunService.Heartbeat:Connect(infiniteSlideHeartbeatFunc)
+    else
+        if infiniteSlideHeartbeat then
+            infiniteSlideHeartbeat:Disconnect()
+            infiniteSlideHeartbeat = nil
+        end
+        
+        if infiniteSlideCharacterConn then
+            infiniteSlideCharacterConn:Disconnect()
+            infiniteSlideCharacterConn = nil
+        end
+        
+        setSlideFriction(5)
+        movementTables = {}
+    end
+end
+
+MainTab:Toggle({
+    Title = "Infinite Slide",
+    Value = false,
+    Callback = function(state)
+        setInfiniteSlide(state)
+    end
+})
+
+MainTab:Space()
+
+-- Auto Revive
+local featureStates = { AutoSelfRevive = false, SelfReviveMethod = "Spawnpoint" }
+local lastSavedPosition = nil
+local AutoSelfReviveConnection = nil
+local respawnConnection = nil
+local hasRevived = false
+
+local function doRevive(char)
+    if not char then return end
+    local isDowned = char:GetAttribute("Downed")
+    if not isDowned then return end
+
+    if featureStates.SelfReviveMethod == "Spawnpoint" then
+        if not hasRevived then
+            hasRevived = true
+            pcall(function()
+                ReplicatedStorage.Events.Player.ChangePlayerMode:FireServer(true)
+            end)
+            task.delay(10, function() hasRevived = false end)
+        end
+    elseif featureStates.SelfReviveMethod == "Revive" then
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if hrp then lastSavedPosition = hrp.Position end
+        task.spawn(function()
+            task.wait(3)
+            local startTime = tick()
+            repeat
+                pcall(function()
+                    ReplicatedStorage.Events.Player.ChangePlayerMode:FireServer(true)
+                end)
+                task.wait(1)
+            until not char:GetAttribute("Downed") or (tick() - startTime > 1)
+
+            local newChar
+            repeat
+                newChar = Player.Character
+                task.wait()
+            until newChar and newChar:FindFirstChild("HumanoidRootPart")
+
+            local newHRP = newChar:FindFirstChild("HumanoidRootPart")
+            if lastSavedPosition and newHRP then
+                newHRP.CFrame = CFrame.new(lastSavedPosition)
+                task.wait(0.5)
+                if (newHRP.Position - lastSavedPosition).Magnitude > 1 then
+                    lastSavedPosition = nil
+                end
+            end
+        end)
+    end
+end
+
+local function setupAutoRevive(char)
+    if AutoSelfReviveConnection then AutoSelfReviveConnection:Disconnect() end
+    AutoSelfReviveConnection = char:GetAttributeChangedSignal("Downed"):Connect(function()
+        if char:GetAttribute("Downed") then doRevive(char) end
+    end)
+end
+
+if respawnConnection then respawnConnection:Disconnect() end
+respawnConnection = Player.CharacterAdded:Connect(function(newChar)
+    task.wait(1)
+    if featureStates.AutoSelfRevive then setupAutoRevive(newChar) end
+end)
+
+MainTab:Dropdown({
+    Title = "Respawn Method",
+    Values = {"Spawnpoint", "Revive"},
+    Value = "Spawnpoint",
+    Callback = function(value)
+        featureStates.SelfReviveMethod = value
+    end
+})
+
+MainTab:Button({
+    Title = "Respawn",
+    Callback = function()
+        doRevive(Player.Character)
+    end
+})
+
+if Player.Character and featureStates.AutoSelfRevive then
+    setupAutoRevive(Player.Character)
+end
+
+MainTab:Divider()
+
+-- Fast Revive
+local fastReviveEnabled = false
+local fastReviveConnection = nil
+local fastReviveDelay = 0.15
+
+local function isPlayerDowned(player)
+    if not player or not player.Character then return false end
+    return player.Character:GetAttribute("Downed") == true
+end
+
+local function startFastRevive()
+    if fastReviveConnection then return end
+    
+    fastReviveConnection = RunService.Heartbeat:Connect(function()
+        if not fastReviveEnabled then return end
+        
+        local character = Player.Character
+        if not character then return end
+        
+        local hrp = character:FindFirstChild("HumanoidRootPart")
+        if not hrp then return end
+        
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= Player and isPlayerDowned(player) and player.Character then
+                local targetHrp = player.Character:FindFirstChild("HumanoidRootPart")
+                if targetHrp then
+                    local distance = (hrp.Position - targetHrp.Position).Magnitude
+                    if distance <= 15 then
+                        pcall(function()
+                            ReplicatedStorage.Events.Character.Interact:FireServer("Revive", true, player.Name)
+                        end)
+                        task.wait(fastReviveDelay)
+                    end
+                end
+            end
+        end
+    end)
+end
+
+local function stopFastRevive()
+    if fastReviveConnection then
+        fastReviveConnection:Disconnect()
+        fastReviveConnection = nil
+    end
+end
+
+MainTab:Toggle({
+    Title = "Fast Revive",
+    Value = false,
+    Callback = function(state)
+        fastReviveEnabled = state
+        
+        if state then
+            startFastRevive()
+        else
+            stopFastRevive()
+        end
+    end
+})
+
+-- Auto Carry Feature
+getgenv().AutoCarryConnection = nil
+getgenv().FeatureStates = getgenv().FeatureStates or {}
+getgenv().FeatureStates.AutoCarry = false
+
+local InteractRemote = ReplicatedStorage:WaitForChild("Events"):WaitForChild("Character"):WaitForChild("Interact", 10)
+
+local function startAutoCarry()
+    if getgenv().AutoCarryConnection then return end
+    
+    getgenv().AutoCarryConnection = RunService.Heartbeat:Connect(function()
+        if not getgenv().FeatureStates.AutoCarry then return end
+        local char = Player.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if hrp and InteractRemote then
+            for _, other in ipairs(Players:GetPlayers()) do
+                if other ~= Player and other.Character and other.Character:FindFirstChild("HumanoidRootPart") then
+                    local dist = (hrp.Position - other.Character.HumanoidRootPart.Position).Magnitude
+                    if dist <= 20 then
+                        local args = { "Carry", [3] = other.Name }
+                        pcall(function()
+                            InteractRemote:FireServer(unpack(args))
+                        end)
+                        task.wait(0.01)
+                    end
+                end
+            end
+        end
+    end)
+end
+
+local function stopAutoCarry()
+    if getgenv().AutoCarryConnection then
+        getgenv().AutoCarryConnection:Disconnect()
+        getgenv().AutoCarryConnection = nil
+    end
+end
+
+MainTab:Toggle({
+    Title = "Auto Carry",
+    Value = false,
+    Callback = function(state)
+        getgenv().FeatureStates.AutoCarry = state
+        
+        if state then
+            startAutoCarry()
+        else
+            stopAutoCarry()
+        end
+    end
+})
+
+-- Lag Tab
+GameTab:Button({  
+    Title = "LowerChunks",  
+    Description = "Reduces the streaming radius for performance improvement",  
+    Callback = function()  
+        workspace.StreamingMinRadius = 200  
+        workspace.StreamingTargetRadius = 500  
+    end  
+})  
+
+GameTab:Button({  
+    Title = "DisableVSync",  
+    Description = "Disables vertical sync to allow higher FPS",  
+    Callback = function()  
+        setfpscap(9999)  
+    end  
+})  
+
+GameTab:Button({  
+    Title = "SetFpsCapMax",  
+    Description = "Sets the FPS cap to a very high value",  
+    Callback = function()  
+        setfpscap(99999)  
+    end  
+})  
+
+GameTab:Button({  
+    Title = "HideSkybox",  
+    Description = "Removes the skybox for better performance",  
+    Callback = function()  
+        game.Lighting.Sky = nil  
+    end  
+})  
+
+GameTab:Button({  
+    Title = "DisableShadows",  
+    Description = "Disables all shadows in the workspace",  
+    Callback = function()  
+        for _, part in pairs(workspace:GetDescendants()) do  
+            if part:IsA("BasePart") then  
+                part.CastShadow = false  
+            end  
+        end  
+    end  
+})  
+
+GameTab:Button({  
+    Title = "SetLowGraphics",  
+    Description = "Sets the rendering quality to low",  
+    Callback = function()  
+        settings().Rendering.QualityLevel = 1  
+    end  
+})  
+
+GameTab:Button({  
+    Title = "DisableParticles",  
+    Description = "Removes all particle effects from the game",  
+    Callback = function()  
+        for _, particle in pairs(workspace:GetDescendants()) do  
+            if particle:IsA("ParticleEmitter") then  
+                particle:Destroy()  
+            end  
+        end  
+    end  
+})  
+
+GameTab:Button({  
+    Title = "Night",  
+    Description = "Sets the time to night (00:00)",  
+    Callback = function()  
+        game.Lighting.TimeOfDay = "00:00:00"  
+    end  
+})  
+
+GameTab:Button({  
+    Title = "Day",  
+    Description = "Sets the time to morning (08:00)",  
+    Callback = function()  
+        game.Lighting.TimeOfDay = "08:00:00"  
+    end  
+})  
+
+GameTab:Button({  
+    Title = "AntiFog",  
+    Description = "Removes fog for better visibility",  
+    Callback = function()  
+        local L = game.Lighting  
+        L.FogStart = 1e5  
+        L.FogEnd = 1e6  
+    end  
+})  
+
+GameTab:Button({  
+    Title = "LowPolyMode",  
+    Description = "Converts meshes to low-poly for performance",  
+    Callback = function()  
+        for _, p in pairs(workspace:GetDescendants()) do  
+            if p:IsA("MeshPart") or p:IsA("UnionOperation") then  
+                p.Material = Enum.Material.Plastic  
+                p.RenderFidelity = Enum.RenderFidelity.Performance  
+            end  
+        end  
+    end  
+})  
+
+GameTab:Button({  
+    Title = "DisableSimplifyLighting",  
+    Description = "Disables lighting simplifications for custom settings",  
+    Callback = function()  
+        local L = game.Lighting  
+        L.Technology = Enum.Technology.Compatibility  
+        L.ShadowSoftness = 0  
+        L.EnvironmentDiffuseScale = 0  
+        L.EnvironmentSpecularScale = 0  
+    end  
+})  
+
+GameTab:Button({  
+    Title = "HideUselessChunks",  
+    Description = "Reduces streaming of unnecessary chunks",  
+    Callback = function()  
+        workspace.StreamingMinRadius = 0  
+        workspace.StreamingTargetRadius = 500  
+    end  
+})  
+
+GameTab:Button({  
+    Title = "ReduceAntiAliasing",  
+    Description = "Reduces anti-aliasing for performance",  
+    Callback = function()  
+        game:GetService("Rendering"):SetCore("AntiAliasing", Enum.AntiAliasingLevel.Two)  
+    end  
+})
+
+-- Visual Tab (Cosmetics, Headless, Korblox)
+local HEADLESS_MESH_ID = "rbxassetid://1095708"
+local KORBLOX_MESH_ID = "rbxassetid://101851696"
+local KORBLOX_COLOR = Color3.fromRGB(50, 50, 50)
+
+local headlessEnabled = false
+local korbloxEnabled = false
+
+local headlessMesh
+local originalLegColor
+
+local function applyHeadless(head)
+    if not head then return end
+    head.Transparency = 1
+    head.CanCollide = false
+
+    local face = head:FindFirstChild("face")
+    if face then face:Destroy() end
+
+    if headlessMesh then
+        headlessMesh:Destroy()
+    end
+    
+    headlessMesh = Instance.new("SpecialMesh")
+    headlessMesh.MeshType = Enum.MeshType.FileMesh
+    headlessMesh.MeshId = HEADLESS_MESH_ID
+    headlessMesh.Scale = Vector3.new(0.001, 0.001, 0.001)
+    headlessMesh.Parent = head
+end
+
+local function removeHeadless(head)
+    if not head then return end
+    if headlessMesh then
+        headlessMesh:Destroy()
+        headlessMesh = nil
+    end
+    head.Transparency = 0
+    head.CanCollide = true
+end
+
+local function applyKorblox(character)
+    local rightLeg = character:FindFirstChild("Right Leg") or character:FindFirstChild("RightUpperLeg")
+    if not rightLeg then return end
+
+    if not originalLegColor then
+        originalLegColor = rightLeg.Color
+    end
+
+    for _, child in ipairs(rightLeg:GetChildren()) do
+        if child:IsA("SpecialMesh") or child:IsA("CharacterMesh") then
+            child:Destroy()
+        end
+    end
+
+    rightLeg.Color = KORBLOX_COLOR
+    local mesh = Instance.new("SpecialMesh")
+    mesh.MeshType = Enum.MeshType.FileMesh
+    mesh.MeshId = KORBLOX_MESH_ID
+    mesh.Scale = Vector3.new(1, 1, 1)
+    mesh.Parent = rightLeg
+end
+
+local function removeKorblox(character)
+    local rightLeg = character:FindFirstChild("Right Leg") or character:FindFirstChild("RightUpperLeg")
+    if not rightLeg then return end
+
+    for _, child in ipairs(rightLeg:GetChildren()) do
+        if child:IsA("SpecialMesh") or child:IsA("CharacterMesh") then
+            child:Destroy()
+        end
+    end
+
+    if originalLegColor then
+        rightLeg.Color = originalLegColor
+        originalLegColor = nil
+    end
+end
+
+Player.CharacterAdded:Connect(function(char)
+    task.wait(0.5)
+    local head = char:WaitForChild("Head")
+    if headlessEnabled then
+        applyHeadless(head)
+    end
+    if korbloxEnabled then
+        applyKorblox(char)
+    end
+end)
+
+VisualTab:Toggle({
+    Title = "Headless",
+    Default = false,
+    Callback = function(state)
+        headlessEnabled = state
+        local char = Player.Character or Player.CharacterAdded:Wait()
+        local head = char:WaitForChild("Head")
+        if state then
+            applyHeadless(head)
+        else
+            removeHeadless(head)
+        end
+    end
+})
+
+VisualTab:Toggle({
+    Title = "Korblox",
+    Default = false,
+    Callback = function(state)
+        korbloxEnabled = state
+        local char = Player.Character or Player.CharacterAdded:Wait()
+        if state then
+            applyKorblox(char)
+        else
+            removeKorblox(char)
+        end
+    end
+})
+
+local cosmetic1, cosmetic2 = ""
+VisualTab:Space()
+VisualTab:Divider()
+
+VisualTab:Input({
+    Title = "Cosmetic 1",
+    Placeholder = "Enter Current Cosmetic",
+    Callback = function(v) cosmetic1 = v end
+})
+
+VisualTab:Input({
+    Title = "Cosmetic 2",
+    Placeholder = "Enter Select Cosmetic",
+    Callback = function(v) cosmetic2 = v end
+})
+
+VisualTab:Button({
+    Title = "Apply Cosmetics",
+    Callback = function()
+        pcall(function()
+            if cosmetic1 == "" or cosmetic2 == "" or cosmetic1 == cosmetic2 then return end
+
+            local Cosmetics = ReplicatedStorage:WaitForChild("Items"):WaitForChild("Cosmetics", 10)
+            if not Cosmetics then return end
+
+            local function normalize(str)
+                return str:gsub("%s+", ""):lower()
+            end
+
+            local function levenshtein(s, t)
+                local m, n = #s, #t
+                local d = {}
+                for i = 0, m do d[i] = {[0] = i} end
+                for j = 0, n do d[0][j] = j end
+
+                for i = 1, m do
+                    for j = 1, n do
+                        local cost = (s:sub(i,i) == t:sub(j,j)) and 0 or 1
+                        d[i][j] = math.min(
+                            d[i-1][j] + 1,
+                            d[i][j-1] + 1,
+                            d[i-1][j-1] + cost
+                        )
+                    end
+                end
+                return d[m][n]
+            end
+
+            local function similarity(s, t)
+                local nS, nT = normalize(s), normalize(t)
+                local dist = levenshtein(nS, nT)
+                return 1 - dist / math.max(#nS, #nT)
+            end
+
+            local function findSimilar(name)
+                local bestMatch = name
+                local bestScore = 0.5
+                for _, c in ipairs(Cosmetics:GetChildren()) do
+                    local score = similarity(name, c.Name)
+                    if score > bestScore then
+                        bestScore = score
+                        bestMatch = c.Name
+                    end
+                end
+                return bestMatch
+            end
+
+            cosmetic1 = findSimilar(cosmetic1)
+            cosmetic2 = findSimilar(cosmetic2)
+
+            local a = Cosmetics:FindFirstChild(cosmetic1)
+            local b = Cosmetics:FindFirstChild(cosmetic2)
+            if not a or not b then return end
+
+            local tempRoot = Instance.new("Folder", Cosmetics)
+            tempRoot.Name = "__temp_swap_" .. tostring(tick()):gsub("%.", "_")
+
+            local tempA = Instance.new("Folder", tempRoot)
+            local tempB = Instance.new("Folder", tempRoot)
+
+            for _, c in ipairs(a:GetChildren()) do c.Parent = tempA end
+            for _, c in ipairs(b:GetChildren()) do c.Parent = tempB end
+
+            for _, c in ipairs(tempA:GetChildren()) do c.Parent = b end
+            for _, c in ipairs(tempB:GetChildren()) do c.Parent = a end
+
+            tempRoot:Destroy()
+        end)
+    end
+})
+
+-- Emote Changer
+local Events = ReplicatedStorage:WaitForChild("Events",10)
+local CharacterFolder = Events:WaitForChild("Character",10)
+local EmoteRemote = CharacterFolder:WaitForChild("Emote",10)
+local PassCharacterInfo = CharacterFolder:WaitForChild("PassCharacterInfo",10)
+local remoteSignal = PassCharacterInfo and PassCharacterInfo.OnClientEvent
+
+local currentTag = nil
+local currentEmotes = table.create(12,"")
+local selectEmotes = table.create(12,"")
+local emoteEnabled = table.create(12,false)
+local pendingSlot = nil
+local blockOriginalEmote = false
+
+local classicIDs = {
+    "rbxassetid://73383479205643",
+    "rbxassetid://84248734120911",
+    "rbxassetid://125497596837433"
+}
+local normalIDs = {
+    "rbxassetid://15221552726",
+    "rbxassetid://15221548816",
+    "rbxassetid://15221544236"
+}
+
+local function readTagFromFolder(f)
+    if not f then return nil end
+    local a=f:GetAttribute("Tag")
+    if a~=nil then return a end
+    local o=f:FindFirstChild("Tag")
+    if o and o:IsA("ValueBase") then return o.Value end
+    return nil
+end
+
+local function onRespawn()
+    currentTag=nil
+    pendingSlot=nil
+    task.spawn(function()
+        local start=tick()
+        while tick()-start<10 do
+            if workspace:FindFirstChild("Game") and workspace.Game:FindFirstChild("Players") then
+                local pf=workspace.Game.Players:FindFirstChild(Player.Name)
+                if pf then
+                    currentTag=readTagFromFolder(pf)
+                    if currentTag then
+                        local b=tonumber(currentTag)
+                        if b and b>=0 and b<=255 then break else currentTag=nil end
+                    end
+                end
+            end
+            task.wait(0.5)
+        end
+    end)
+end
+
+local function fireSelect(slot)
+    if not currentTag then return end
+    local b=tonumber(currentTag)
+    if not b or b<0 or b>255 then return end
+    if not selectEmotes[slot] or selectEmotes[slot]=="" then return end
+    local buf=buffer.create(2)
+    buffer.writeu8(buf,0,b)
+    buffer.writeu8(buf,1,17)
+    if remoteSignal then
+        firesignal(remoteSignal,buf,{selectEmotes[slot]})
+    end
+end
+
+local oldNamecallHook
+oldNamecallHook = hookmetamethod(game,"__namecall",function(self,...)
+    local method = getnamecallmethod()
+    local args = {...}
+
+    if method=="FireServer" and self==EmoteRemote and type(args[1])=="string" then
+        for i=1,12 do
+            if emoteEnabled[i] and currentEmotes[i]~="" and args[1]==currentEmotes[i] then
+                pendingSlot=i
+                blockOriginalEmote=true
+
+                task.spawn(function()
+                    task.wait(0.1)
+                    blockOriginalEmote=false
+                    if pendingSlot==i then
+                        pendingSlot=nil
+                        fireSelect(i)
+                    end
+                end)
+
+                if blockOriginalEmote then return nil end
+            end
+        end
+    end
+
+    return oldNamecallHook(self,...)
+end)
+
+if Player.Character then task.spawn(onRespawn) end
+Player.CharacterAdded:Connect(function() task.wait(1) onRespawn() end)
+
+if workspace:FindFirstChild("Game") and workspace.Game:FindFirstChild("Players") then
+    workspace.Game.Players.ChildAdded:Connect(function(child)
+        if child.Name==Player.Name then task.wait(0.5) onRespawn() end
+    end)
+    workspace.Game.Players.ChildRemoved:Connect(function(child)
+        if child.Name==Player.Name then currentTag=nil pendingSlot=nil end
+    end)
+end
+
+for i=1,12 do
+    VisualTab:Input({
+        Title="Current Emote "..i,
+        Placeholder="Enter current emote name",
+        Value=currentEmotes[i],
+        Callback=function(v)
+            local n=v:gsub("%s+","")
+            local best=nil
+            for _,e in ipairs(ReplicatedStorage.Items.Emotes:GetChildren()) do
+                if e.Name:lower():find(n:lower()) then best=e.Name break end
+            end
+            if best then currentEmotes[i]=best end
+        end
+    })
+    VisualTab:Input({
+        Title="Select Emote "..i,
+        Placeholder="Enter select emote name",
+        Value=selectEmotes[i],
+        Callback=function(v)
+            local n=v:gsub("%s+","")
+            local best=nil
+            for _,e in ipairs(ReplicatedStorage.Items.Emotes:GetChildren()) do
+                if e.Name:lower():find(n:lower()) then best=e.Name break end
+            end
+            if best then selectEmotes[i]=best end
+        end
+    })
+    VisualTab:Button({
+        Title="Apply Slot "..i,
+        Icon="refresh-cw",
+        Callback=function()
+            emoteEnabled[i]=(currentEmotes[i]~="" and selectEmotes[i]~="")
+            WindUI:Notify({Title="Emote Changer",Content="Slot "..i.." applied!"})
+        end
+    })
+    VisualTab:Divider()
+end
+
+VisualTab:Button({
+    Title="Reset All Emotes",
+    Icon="trash-2",
+    Callback=function()
+        for i=1,12 do currentEmotes[i]="" selectEmotes[i]="" emoteEnabled[i]=false end
+        WindUI:Notify({Title="Emote Changer",Content="All emotes reset!"})
+    end
+})
+
+local zombie = ReplicatedStorage.Items.Emotes:FindFirstChild("ZombieStride")
+if zombie then
+    if zombie:FindFirstChild("EmoteModule") then zombie.EmoteModule:Destroy() end
+    if zombie:FindFirstChild("EmoteModuleClassic") then zombie.EmoteModuleClassic:Destroy() end
+
+    spawn(function()
+        while true do
+            if zombie:FindFirstChild("Animation") then
+                zombie.Animation.AnimationId = normalIDs[math.random(1,#normalIDs)]
+            end
+            if zombie:FindFirstChild("AnimationClassic") then
+                zombie.AnimationClassic.AnimationId = classicIDs[math.random(1,#classicIDs)]
+            end
+            task.wait(1)
+        end
+    end)
+end
+
+-- ESP Player
+EspTab:Toggle({
+    Title = "Esp Player",
+    Value = false,
+    Callback = function(state)
+        getgenv().FeatureStates = getgenv().FeatureStates or {}
+        getgenv().FeatureStates.EspPlayer = state
+        
+        if getgenv().espThreads and getgenv().espThreads["player"] then
+            coroutine.close(getgenv().espThreads["player"])
+            getgenv().espThreads["player"] = nil
+        end
+        
+        -- Hapus ESP player yang sudah ada
+        if getgenv().espObjects then
+            for part, data in pairs(getgenv().espObjects) do
+                if data and data.type == "Player" then
+                    if data.billboard then data.billboard:Destroy() end
+                    getgenv().espObjects[part] = nil
+                end
+            end
+        end
+        
+        if not state then return end
+        
+        -- Inisialisasi jika belum ada
+        getgenv().espThreads = getgenv().espThreads or {}
+        getgenv().espObjects = getgenv().espObjects or {}
+        
+        -- Fungsi untuk membuat ESP
+        local function createESP(part, espType, color)
+            local billboard = Instance.new("BillboardGui")
+            billboard.Name = "ESP_" .. part.Name
+            billboard.Adornee = part
+            billboard.Size = UDim2.new(0, 200, 0, 50)
+            billboard.StudsOffset = Vector3.new(0, 3, 0)
+            billboard.AlwaysOnTop = true
+            billboard.MaxDistance = 1000
+            billboard.LightInfluence = 0
+            billboard.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+            billboard.Parent = part
+            
+            local label = Instance.new("TextLabel")
+            label.Name = "ESPLabel"
+            label.Size = UDim2.new(1, 0, 1, 0)
+            label.BackgroundTransparency = 1
+            label.Font = Enum.Font.GothamBold
+            label.TextSize = 14
+            label.TextColor3 = color
+            label.TextStrokeTransparency = 0.5
+            label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+            label.Text = ""
+            label.Parent = billboard
+            
+            getgenv().espObjects[part] = {
+                type = espType,
+                billboard = billboard,
+                label = label
+            }
+            
+            return getgenv().espObjects[part]
+        end
+        
+        -- Fungsi untuk menghapus ESP
+        local function removeESP(part)
+            if getgenv().espObjects[part] then
+                if getgenv().espObjects[part].billboard then
+                    getgenv().espObjects[part].billboard:Destroy()
+                end
+                getgenv().espObjects[part] = nil
+            end
+        end
+        
+        -- Thread untuk ESP player
+        getgenv().espThreads["player"] = coroutine.create(function()
+            local function getDistance(pos)
+                local char = Player.Character
+                local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                return hrp and (pos - hrp.Position).Magnitude or 0
+            end
+            
+            -- Warna biru-putih gradien
+            local function getBlueWhiteColor(intensity)
+                -- Intensity 0-1: 0 = putih, 1 = biru cerah
+                local blue = Color3.fromRGB(100, 180, 255) -- Biru cerah
+                local white = Color3.fromRGB(255, 255, 255) -- Putih
+                
+                -- Gradien antara putih dan biru
+                local r = white.R + (blue.R - white.R) * intensity
+                local g = white.G + (blue.G - white.G) * intensity
+                local b = white.B + (blue.B - white.B) * intensity
+                
+                return Color3.new(r, g, b)
+            end
+            
+            while getgenv().FeatureStates.EspPlayer and task.wait(0.3) do
+                local folder = workspace:FindFirstChild("Game") and workspace.Game:FindFirstChild("Players")
+                if not folder then continue end
+                
+                for _, char in ipairs(folder:GetChildren()) do
+                    if not char:IsA("Model") then continue end
+                    if char:GetAttribute("Team") == "Nextbot" then continue end
+                    if char.Name == Player.Name then continue end
+                    
+                    local hrp = char:FindFirstChild("HumanoidRootPart")
+                    if not hrp then continue end
+                    
+                    local espData = getgenv().espObjects[hrp]
+                    if not espData then
+                        -- Warna awal: campuran biru-putih (intensity 0.7)
+                        espData = createESP(hrp, "Player", getBlueWhiteColor(0.7))
+                    end
+                    
+                    if not espData or not espData.billboard or not espData.billboard.Parent then
+                        getgenv().espObjects[hrp] = nil
+                        continue
+                    end
+                    
+                    local dist = getDistance(hrp.Position)
+                    local downed = char:GetAttribute("Downed")
+                    local downedTime = tonumber(char:GetAttribute("DownedTimeLeft")) or 0
+                    
+                    local displayText
+                    local colorIntensity
+                    
+                    if downed == true then
+                        -- Untuk downed: lebih biru (intensity tinggi)
+                        colorIntensity = 0.9
+                        displayText = string.format('%s [DOWNED %.0fs]', char.Name, downedTime)
+                    elseif downed == false then
+                        -- Untuk hidup: campuran sedang (intensity sedang)
+                        colorIntensity = 0.7
+                        displayText = string.format('%s [%.0f studs]', char.Name, dist)
+                    else
+                        -- Status unknown: campuran ringan (intensity rendah)
+                        colorIntensity = 0.5
+                        displayText = string.format('%s [%.0f studs]', char.Name, dist)
+                    end
+                    
+                    -- Update warna dengan gradien biru-putih
+                    local color = getBlueWhiteColor(colorIntensity)
+                    
+                    espData.label.Text = displayText
+                    espData.label.TextColor3 = color
+                    
+                    -- Tambahkan efek gradien subtle dengan perubahan transparansi
+                    local sinValue = math.sin(tick() * 2)
+                    local alpha = 0.3 + (0.2 * sinValue)
+                    
+                    -- Buat warna lebih dinamis dengan efek pulsing ringan
+                    local pulseColor = Color3.new(
+                        color.R * (0.9 + 0.1 * math.sin(tick() * 3)),
+                        color.G * (0.9 + 0.1 * math.sin(tick() * 3 + 1)),
+                        color.B * (0.9 + 0.1 * math.sin(tick() * 3 + 2))
+                    )
+                    
+                    espData.label.TextColor3 = pulseColor
+                    espData.label.TextStrokeTransparency = alpha
+                end
+                
+                -- Bersihkan ESP untuk pemain yang sudah tidak ada
+                for part, data in pairs(getgenv().espObjects) do
+                    if data.type == "Player" then
+                        if not part.Parent or not part:IsDescendantOf(workspace) then
+                            removeESP(part)
+                        end
+                    end
+                end
+            end
+        end)
+        
+        coroutine.resume(getgenv().espThreads["player"])
+    end
+})
+
+-- ESP Nextbot
+EspTab:Toggle({
+    Title = "Esp Nextbot",
+    Value = false,
+    Callback = function(state)
+        getgenv().FeatureStates = getgenv().FeatureStates or {}
+        getgenv().FeatureStates.EspNextbot = state
+        
+        if getgenv().espThreads and getgenv().espThreads["nextbot"] then
+            coroutine.close(getgenv().espThreads["nextbot"])
+            getgenv().espThreads["nextbot"] = nil
+        end
+        
+        -- Hapus ESP nextbot yang sudah ada
+        if getgenv().espObjects then
+            for part, data in pairs(getgenv().espObjects) do
+                if data and data.type == "Nextbot" then
+                    if data.billboard then data.billboard:Destroy() end
+                    getgenv().espObjects[part] = nil
+                end
+            end
+        end
+        
+        if not state then return end
+        
+        -- Inisialisasi jika belum ada
+        getgenv().espThreads = getgenv().espThreads or {}
+        getgenv().espObjects = getgenv().espObjects or {}
+        
+        -- Fungsi untuk membuat ESP
+        local function createESP(part, espType, color)
+            local billboard = Instance.new("BillboardGui")
+            billboard.Name = "ESP_" .. part.Name
+            billboard.Adornee = part
+            billboard.Size = UDim2.new(0, 250, 0, 60)
+            billboard.StudsOffset = Vector3.new(0, 4, 0)
+            billboard.AlwaysOnTop = true
+            billboard.MaxDistance = 1500
+            billboard.LightInfluence = 0
+            billboard.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+            billboard.Parent = part
+            
+            local label = Instance.new("TextLabel")
+            label.Name = "ESPLabel"
+            label.Size = UDim2.new(1, 0, 1, 0)
+            label.BackgroundTransparency = 1
+            label.Font = Enum.Font.GothamBold
+            label.TextSize = 16
+            label.TextColor3 = color
+            label.TextStrokeTransparency = 0.3
+            label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+            label.TextStrokeTransparency = 0
+            label.Text = ""
+            label.Parent = billboard
+            
+            getgenv().espObjects[part] = {
+                type = espType,
+                billboard = billboard,
+                label = label
+            }
+            
+            return getgenv().espObjects[part]
+        end
+        
+        -- Fungsi untuk menghapus ESP
+        local function removeESP(part)
+            if getgenv().espObjects[part] then
+                if getgenv().espObjects[part].billboard then
+                    getgenv().espObjects[part].billboard:Destroy()
+                end
+                getgenv().espObjects[part] = nil
+            end
+        end
+        
+        -- Thread untuk ESP nextbot
+        getgenv().espThreads["nextbot"] = coroutine.create(function()
+            local function getDistance(pos)
+                local char = Player.Character
+                local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                return hrp and (pos - hrp.Position).Magnitude or 0
+            end
+            
+            -- Warna gradien magenta-putih
+            local function getMagentaWhiteColor(intensity)
+                -- Intensity 0-1: 0 = putih, 1 = magenta cerah
+                local magenta = Color3.fromRGB(255, 100, 255) -- Magenta cerah
+                local white = Color3.fromRGB(255, 255, 255) -- Putih
+                
+                -- Gradien antara putih dan magenta
+                local r = white.R + (magenta.R - white.R) * intensity
+                local g = white.G + (magenta.G - white.G) * intensity
+                local b = white.B + (magenta.B - white.B) * intensity
+                
+                return Color3.new(r, g, b)
+            end
+            
+            while getgenv().FeatureStates.EspNextbot and task.wait(0.3) do
+                local folder = workspace:FindFirstChild("Game") and workspace.Game:FindFirstChild("Players")
+                if not folder then continue end
+                
+                for _, npc in ipairs(folder:GetChildren()) do
+                    if not npc:IsA("Model") then continue end
+                    if npc:GetAttribute("Team") ~= "Nextbot" then continue end
+                    
+                    local part = npc:FindFirstChild("Root") or 
+                                npc:FindFirstChild("Head") or 
+                                npc:FindFirstChild("HumanoidRootPart") or
+                                npc:FindFirstChildWhichIsA("BasePart")
+                    if not part then continue end
+                    
+                    local espData = getgenv().espObjects[part]
+                    if not espData then
+                        -- Warna awal: campuran magenta-putih (intensity 0.8)
+                        espData = createESP(part, "Nextbot", getMagentaWhiteColor(0.8))
+                    end
+                    
+                    if not espData or not espData.billboard or not espData.billboard.Parent then
+                        getgenv().espObjects[part] = nil
+                        continue
+                    end
+                    
+                    local dist = getDistance(part.Position)
+                    
+                    -- Warna berdasarkan jarak dengan gradien magenta-putih
+                    local baseIntensity = 0.8
+                    local colorIntensity
+                    
+                    if dist <= 60 then
+                        -- Jika dekat (< 60 studs), warna lebih intens (magenta lebih dominan)
+                        local t = math.clamp((dist - 12) / 48, 0, 1)
+                        colorIntensity = 0.9 - (0.3 * t) -- Dari 0.9 ke 0.6
+                    else
+                        -- Jika jauh, warna lebih lembut (putih lebih dominan)
+                        colorIntensity = 0.6
+                    end
+                    
+                    -- Dapatkan warna gradien
+                    local color = getMagentaWhiteColor(colorIntensity)
+                    
+                    -- Format teks
+                    local npcName = npc.Name
+                    local displayText = string.format("[NEXTBOT]\n%s\n%.0f studs", npcName, dist)
+                    
+                    espData.label.Text = displayText
+                    espData.label.TextColor3 = color
+                    
+                    -- Tambahkan efek visual dinamis
+                    local pulseSpeed = 2
+                    if dist <= 60 then
+                        pulseSpeed = 4 -- Lebih cepat jika dekat
+                    end
+                    
+                    local sinValue = math.sin(tick() * pulseSpeed)
+                    local pulseIntensity = 0.1 * sinValue
+                    
+                    -- Efek pulsing pada warna
+                    local pulseColor = Color3.new(
+                        color.R * (0.9 + pulseIntensity),
+                        color.G * (0.9 + pulseIntensity),
+                        color.B * (0.9 + pulseIntensity)
+                    )
+                    
+                    espData.label.TextColor3 = pulseColor
+                    
+                    -- Efek glow pada text stroke
+                    local glowAlpha = 0.2 + (0.1 * math.sin(tick() * 3))
+                    espData.label.TextStrokeTransparency = glowAlpha
+                end
+                
+                -- Bersihkan ESP untuk nextbot yang sudah tidak ada
+                for part, data in pairs(getgenv().espObjects) do
+                    if data.type == "Nextbot" then
+                        if not part.Parent or not part:IsDescendantOf(workspace) then
+                            removeESP(part)
+                        end
+                    end
+                end
+            end
+        end)
+        
+        coroutine.resume(getgenv().espThreads["nextbot"])
+    end
+})
+
+-- Tracer Downed Players
+getgenv().tracerLines = {}
+getgenv().tracerThread = nil
+
+local function cleanupTracers()
+    for _, line in ipairs(getgenv().tracerLines) do
+        if line and typeof(line) == "Drawing" then
+            line:Remove()
+        end
+    end
+    getgenv().tracerLines = {}
+end
+
+EspTab:Toggle({
+    Title = "Tracer Downed Players",
+    Value = false,
+    Callback = function(state)
+        getgenv().FeatureStates = getgenv().FeatureStates or {}
+        getgenv().FeatureStates.TracerDowned = state
+        
+        if getgenv().tracerThread then
+            coroutine.close(getgenv().tracerThread)
+            getgenv().tracerThread = nil
+        end
+        
+        cleanupTracers()
+        
+        if not state then return end
+        
+        local Camera = workspace.CurrentCamera
+        
+        getgenv().tracerThread = coroutine.create(function()
+            while getgenv().FeatureStates.TracerDowned and task.wait(0.1) do
+                cleanupTracers()
+                
+                local folder = workspace:FindFirstChild("Game") and workspace.Game:FindFirstChild("Players")
+                if folder and Camera then
+                    for _, char in ipairs(folder:GetChildren()) do
+                        if not char:IsA("Model") then continue end
+                        if char:GetAttribute("Team") == "Nextbot" then continue end
+                        if char.Name == Player.Name then continue end
+                        if char:GetAttribute("Downed") ~= true then continue end
+                        
+                        local hrp = char:FindFirstChild("HumanoidRootPart")
+                        if not hrp then continue end
+                        
+                        local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+                        if onScreen then
+                            -- Gradient warna biru-putih dengan interpolasi
+                            local distance = (hrp.Position - Camera.CFrame.Position).Magnitude
+                            local colorRatio = math.clamp(distance / 100, 0, 1)
+                            
+                            -- Warna gradient dari biru terang ke putih
+                            local blueColor = Color3.fromRGB(135, 206, 250)  -- Light Sky Blue
+                            local whiteColor = Color3.fromRGB(255, 255, 255)  -- White
+                            
+                            -- Interpolasi warna berdasarkan jarak
+                            local finalColor = Color3.new(
+                                blueColor.R + (whiteColor.R - blueColor.R) * colorRatio,
+                                blueColor.G + (whiteColor.G - blueColor.G) * colorRatio,
+                                blueColor.B + (whiteColor.B - blueColor.B) * colorRatio
+                            )
+                            
+                            -- Tracer line dengan gradient warna
+                            local tracer = Drawing.new("Line")
+                            tracer.Color = finalColor
+                            tracer.Thickness = 1.5
+                            
+                            -- Start position (pusat bawah layar)
+                            local startPos = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+                            local endPos = Vector2.new(pos.X, pos.Y)
+                            
+                            tracer.From = startPos
+                            tracer.To = endPos
+                            tracer.Visible = true
+                            tracer.Transparency = 0.7
+                            
+                            -- Glow effect (garis tambahan untuk efek glow)
+                            local glow = Drawing.new("Line")
+                            glow.Color = Color3.fromRGB(173, 216, 230)  -- Light Blue
+                            glow.Thickness = 3
+                            glow.From = startPos
+                            glow.To = endPos
+                            glow.Visible = true
+                            glow.Transparency = 0.4
+                            
+                            table.insert(getgenv().tracerLines, tracer)
+                            table.insert(getgenv().tracerLines, glow)
+                        end
+                    end
+                end
+            end
+        end)
+        
+        coroutine.resume(getgenv().tracerThread)
+    end
+})
+
+-- Game Timer UI
+getgenv().GameTimerUI = {
+    Enabled = false,
+    Connection = nil,
+    ScreenGui = nil,
+    StartTime = tick()
+}
+
+local function formatTime(seconds)
+    local minutes = math.floor(seconds / 60)
+    local secs = math.floor(seconds % 60)
+    return string.format("%02d:%02d", minutes, secs)
+end
+
+local function createTimerUI()
+    if getgenv().GameTimerUI.ScreenGui then
+        getgenv().GameTimerUI.ScreenGui:Destroy()
+    end
+    
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "TimersUI"
+    screenGui.Parent = Player:WaitForChild("PlayerGui")
+    screenGui.Enabled = getgenv().GameTimerUI.Enabled
+    
+    -- Container untuk efek gradient
+    local container = Instance.new("Frame")
+    container.Name = "TimerContainer"
+    container.Size = UDim2.new(0, 180, 0, 90)
+    container.Position = UDim2.new(0.02, 0, 0.02, 0)
+    container.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+    container.BackgroundTransparency = 0.2
+    container.BorderSizePixel = 0
+    
+    -- Gradient untuk container
+    local gradient = Instance.new("UIGradient")
+    gradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(30, 144, 255)),  -- Dodger Blue
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(173, 216, 230)),  -- Light Blue
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(240, 248, 255))  -- Alice Blue
+    })
+    gradient.Rotation = 90
+    gradient.Parent = container
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = container
+    
+    local shadow = Instance.new("UIStroke")
+    shadow.Color = Color3.fromRGB(100, 149, 237)  -- Cornflower Blue
+    shadow.Thickness = 2
+    shadow.Transparency = 0.3
+    shadow.Parent = container
+    
+    container.Parent = screenGui
+    
+    -- Time Label dengan efek gradient teks
+    local timeLabel = Instance.new("TextLabel")
+    timeLabel.Name = "TimeLabel"
+    timeLabel.Size = UDim2.new(0.9, 0, 0.4, 0)
+    timeLabel.Position = UDim2.new(0.05, 0, 0.1, 0)
+    timeLabel.BackgroundTransparency = 1
+    timeLabel.Text = "Time: 0"
+    timeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    timeLabel.TextSize = 18
+    timeLabel.Font = Enum.Font.GothamBold
+    timeLabel.TextXAlignment = Enum.TextXAlignment.Left
+    
+    -- Gradient untuk teks Time Label
+    local timeTextGradient = Instance.new("UIGradient")
+    timeTextGradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(135, 206, 250)),  -- Light Sky Blue
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))  -- White
+    })
+    timeTextGradient.Parent = timeLabel
+    
+    local timeStroke = Instance.new("UIStroke")
+    timeStroke.Color = Color3.fromRGB(30, 144, 255)  -- Dodger Blue
+    timeStroke.Thickness = 1
+    timeStroke.Transparency = 0.7
+    timeStroke.Parent = timeLabel
+    
+    timeLabel.Parent = container
+    
+    -- Client Label dengan efek gradient teks
+    local clientLabel = Instance.new("TextLabel")
+    clientLabel.Name = "ClientLabel"
+    clientLabel.Size = UDim2.new(0.9, 0, 0.4, 0)
+    clientLabel.Position = UDim2.new(0.05, 0, 0.55, 0)
+    clientLabel.BackgroundTransparency = 1
+    clientLabel.Text = "Client Time: 00:00"
+    clientLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    clientLabel.TextSize = 16
+    clientLabel.Font = Enum.Font.GothamBold
+    clientLabel.TextXAlignment = Enum.TextXAlignment.Left
+    
+    -- Gradient untuk teks Client Label
+    local clientTextGradient = Instance.new("UIGradient")
+    clientTextGradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(100, 149, 237)),  -- Cornflower Blue
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))  -- White
+    })
+    clientTextGradient.Parent = clientLabel
+    
+    local clientStroke = Instance.new("UIStroke")
+    clientStroke.Color = Color3.fromRGB(173, 216, 230)  -- Light Blue
+    clientStroke.Thickness = 1
+    clientStroke.Transparency = 0.7
+    clientStroke.Parent = clientLabel
+    
+    clientLabel.Parent = container
+    
+    getgenv().GameTimerUI.ScreenGui = screenGui
+    getgenv().GameTimerUI.StartTime = tick()
+end
+
+local function updateTimer()
+    if getgenv().GameTimerUI.Connection then
+        getgenv().GameTimerUI.Connection:Disconnect()
+        getgenv().GameTimerUI.Connection = nil
+    end
+    
+    getgenv().GameTimerUI.Connection = RunService.Heartbeat:Connect(function()
+        if not getgenv().GameTimerUI.ScreenGui or not getgenv().GameTimerUI.ScreenGui.Enabled then return end
+        
+        local statsFolder = workspace:FindFirstChild("Game") and workspace.Game:FindFirstChild("Stats")
+        local container = getgenv().GameTimerUI.ScreenGui:FindFirstChild("TimerContainer")
+        
+        if container then
+            local timeLabel = container:FindFirstChild("TimeLabel")
+            local clientLabel = container:FindFirstChild("ClientLabel")
+            
+            if timeLabel and clientLabel then
+                if statsFolder then
+                    local timerValue = statsFolder:GetAttribute("Timer")
+                    timeLabel.Text = "Time: " .. (timerValue and tostring(math.floor(timerValue)) or "0")
+                else
+                    timeLabel.Text = "Time: 0"
+                end
+                
+                local clientTime = tick() - getgenv().GameTimerUI.StartTime
+                clientLabel.Text = "Client Time: " .. formatTime(clientTime)
+            end
+        end
+    end)
+end
+
+createTimerUI()
+
+VisualTab:Toggle({
+    Title = "Show Game Timer",
+    Desc = "Displays game timer and client time",
+    Value = getgenv().GameTimerUI.Enabled,
+    Callback = function(state)
+        getgenv().GameTimerUI.Enabled = state
+        
+        if getgenv().GameTimerUI.ScreenGui then
+            getgenv().GameTimerUI.ScreenGui.Enabled = state
+            
+            -- Animasi transisi warna saat toggle
+            if state then
+                local container = getgenv().GameTimerUI.ScreenGui:FindFirstChild("TimerContainer")
+                if container then
+                    local gradient = container:FindFirstChildOfClass("UIGradient")
+                    if gradient then
+                        -- Animation untuk gradient yang hidup
+                        spawn(function()
+                            while getgenv().GameTimerUI.Enabled and container and container.Parent do
+                                gradient.Rotation = gradient.Rotation + 0.5
+                                if gradient.Rotation >= 360 then
+                                    gradient.Rotation = 0
+                                end
+                                wait(0.1)
+                            end
+                        end)
+                    end
+                end
+            end
+        end
+        
+        if state then
+            getgenv().GameTimerUI.StartTime = tick()
+            updateTimer()
+        else
+            if getgenv().GameTimerUI.Connection then
+                getgenv().GameTimerUI.Connection:Disconnect()
+                getgenv().GameTimerUI.Connection = nil
+            end
+        end
+    end
+})
+
+-- Terapkan settings awal
+applySettings()
+
+-- Notifikasi selesai
+task.wait(2)
+WindUI:Notify({
+    Title = "Ryuusei Suna Hub",
+    Content = "Script loaded successfully! All features working!",
+    Duration = 5
+})
